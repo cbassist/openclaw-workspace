@@ -1,0 +1,6 @@
+# Symlink to live npm install (don't version the target)
+install
+
+# Editor/OS artifacts
+.DS_Store
+.idea/
