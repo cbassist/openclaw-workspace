@@ -1,6 +1,6 @@
 ---
 name: drift-check
-description: Check how much the OpenClaw source has drifted from architecture orientation docs
+description: Check architecture doc drift and optionally refresh stale sections in Archon RAG
 ---
 
 # Drift Check
@@ -95,3 +95,64 @@ End with a recommendation paragraph listing which STALE and REVIEW sections shou
 Example:
 
 > **Recommendation:** Sections `01-system-overview` and `05-media-pipeline` are STALE and should be re-read against current source before relying on them. Section `02-gateway` is in REVIEW and may have minor drift worth checking.
+
+## Step 7: Offer refresh (if STALE sections exist)
+
+If any sections are STALE, offer to refresh them:
+
+> "Would you like me to refresh the STALE sections? This will:
+> 1. Read the current source files and update the architecture doc content
+> 2. Update the `based-on` commit hash in the doc header to HEAD
+> 3. Re-upload the updated doc(s) to Archon RAG (delete old source, upload new)
+> 4. Commit the changes"
+
+If the user agrees, for each STALE section:
+
+### 7a: Update the doc
+
+Read the key-files from `openclaw/` (the submodule), compare with the existing architecture doc content, and update the doc to reflect current architecture. Preserve the document format and style. Only update sections where the *architecture* has changed — don't add entries for bug fixes.
+
+### 7b: Update the header
+
+Replace the `based-on` hash with the current submodule HEAD:
+
+```bash
+git -C openclaw rev-parse --short HEAD
+```
+
+### 7c: Re-upload to Archon RAG
+
+For each updated doc, delete the old Archon source and re-upload:
+
+```bash
+# Get the source ID from exploration/archon-rag-strategy.md
+# Delete old source
+curl -sf -X DELETE "http://localhost:8181/api/knowledge-items/<source_id>"
+
+# Upload new version
+curl -sf -X POST "http://localhost:8181/api/documents/upload" \
+  -F "file=@exploration/architecture/<filename>" \
+  -F "knowledge_type=technical" \
+  -F "tags=[\"architecture\", \"openclaw\", \"<section-tag>\"]" \
+  -F "extract_code_examples=true"
+```
+
+After upload, update the source ID in `exploration/archon-rag-strategy.md` if it changed.
+
+### 7d: Commit
+
+```bash
+git add exploration/architecture/<updated-files> exploration/archon-rag-strategy.md
+git commit -m "docs: refresh <section-names> architecture docs to <commit-hash>"
+```
+
+## Archon Source ID Reference
+
+Source IDs are documented in `exploration/archon-rag-strategy.md`. Consult that file when deleting/re-uploading sources.
+
+## Archon API
+
+- **Base URL:** `http://localhost:8181`
+- **Delete source:** `DELETE /api/knowledge-items/<source_id>`
+- **Upload doc:** `POST /api/documents/upload` (multipart form)
+- **Check health:** `GET /health`
