@@ -3,6 +3,8 @@
 
 > High-level architecture diagram, process model, configuration system, and tech stack.
 > **Read when:** you need a bird's-eye view of how OpenClaw fits together.
+>
+> **Diagrams:** [System Overview](../diagrams/08-system-overview.mmd) | [Message Routing](../diagrams/01-message-routing.mmd)
 
 ---
 

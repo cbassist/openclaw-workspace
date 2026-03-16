@@ -1,0 +1,40 @@
+stateDiagram-v2
+    [*] --> SelectProfile: Start
+
+    SelectProfile: Select Profile
+    SelectProfile: Check locked profile or ordered list
+
+    TryProfile: Try Profile
+    TryProfile: Send request to provider
+
+    ClassifyError: Classify Error
+    ClassifyError: auth, billing, rate_limit, timeout, format
+
+    ApplyCooldown: Apply Cooldown
+    ApplyCooldown: Exponential backoff
+    ApplyCooldown: 1min then 5min then 25min then max 1hr
+
+    DisableProfile: Disable Profile
+    DisableProfile: Long disable for billing errors
+    DisableProfile: 5hr then 10hr then 20hr then max 24hr
+
+    Success: Success
+    Success: 200 OK response
+
+    FailoverError: Failover Error
+    FailoverError: All profiles exhausted
+
+    SelectProfile --> TryProfile: Profile available
+    SelectProfile --> FailoverError: All exhausted
+
+    TryProfile --> Success: 200 OK
+    TryProfile --> ClassifyError: Error response
+
+    ClassifyError --> ApplyCooldown: Transient error
+    ClassifyError --> DisableProfile: Billing error
+
+    ApplyCooldown --> SelectProfile: Try next profile
+    DisableProfile --> SelectProfile: Try next profile
+
+    Success --> [*]
+    FailoverError --> [*]

@@ -1,0 +1,54 @@
+flowchart LR
+    subgraph ClientLayer[Client Layer]
+        Client[Client - WebSocket]
+    end
+
+    subgraph AuthLayer[Auth Layer]
+        Parse[Parse and Validate<br/>RequestFrame]
+        ConnAuth[ConnectParams auth]
+        Authorize[authorizeGatewayMethod<br/>scope: read / write / admin]
+    end
+
+    subgraph HandlerDispatch[Handler Dispatch]
+        Lookup[Handler Lookup<br/>coreGatewayHandlers - method]
+
+        NodeH[NodeHandlers]
+        AgentH[AgentHandlers]
+        ConfigH[ConfigHandlers]
+        ChannelH[ChannelHandlers]
+        CronH[CronHandlers]
+
+        Lookup --> NodeH
+        Lookup --> AgentH
+        Lookup --> ConfigH
+        Lookup --> ChannelH
+        Lookup --> CronH
+
+        ChatBuffer[chatRunState buffer<br/>emitChatDelta<br/>emitChatFinal]
+        AgentH --> ChatBuffer
+        ChatBuffer --> StreamEvents[Stream agent events]
+        ConfigH --> BroadcastConfig[Broadcast config event]
+    end
+
+    subgraph ResponseDist[Response Distribution]
+        Broadcast[broadcast<br/>all clients]
+        BroadcastConn[broadcastToConnIds<br/>specific clients]
+        NodeSend[nodeSendToSession<br/>node RPC]
+        EventFrame[Client receives<br/>EventFrame]
+
+        Broadcast --> EventFrame
+        BroadcastConn --> EventFrame
+        NodeSend --> EventFrame
+    end
+
+    Client --> Parse
+    Parse --> ConnAuth
+    ConnAuth --> Authorize
+    Authorize --> Lookup
+
+    StreamEvents --> Broadcast
+    StreamEvents --> BroadcastConn
+    BroadcastConfig --> Broadcast
+    NodeH --> NodeSend
+    ChannelH --> Broadcast
+    CronH --> BroadcastConn

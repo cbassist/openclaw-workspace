@@ -1,0 +1,100 @@
+flowchart TD
+    subgraph Input[Input Sources]
+        TelegramMsg[Telegram Message from Mike]
+        TerminalCmd[Terminal Command to Dante]
+        CronTrigger[Cron Scheduler Trigger]
+        ArchonTask[Archon Task Assignment]
+    end
+
+    subgraph Processing[Agent Processing]
+        subgraph ShizzlePath[Shizzle Path]
+            S_Route[resolveAgentRoute - binding cascade]
+            S_Lane[Lane Manager - Main/Subagent/Cron]
+            S_Prompt[buildEmbeddedSystemPrompt]
+            S_Run[Pi Embedded Runner]
+            S_Tools[Tool Execution - policy checked]
+            S_MemFlush[Pre-Compaction Memory Flush]
+        end
+
+        subgraph DantePath[Dante Path]
+            D_Parse[Parse User Request]
+            D_Skill[Skill Router - 31 skills]
+            D_Execute[Execute with Full Filesystem Access]
+            D_Archon[Update Archon Tasks]
+        end
+
+        subgraph VPSPath[VPS Agent Path]
+            V_Route[Tier Router - fast/medium/heavy]
+            V_Ollama[Ollama 7B Inference]
+            V_API[API Fallback - Gemini/Claude]
+            V_Store[Store Results to PostgreSQL]
+        end
+    end
+
+    subgraph MemoryWrite[Memory Write Pipeline]
+        DailyLog[Append to memory/YYYY-MM-DD.md]
+        CuratedMem[Update MEMORY.md if significant]
+        SQLiteIndex[Re-index SQLite FTS5 + vectors]
+        TraceSave[Save session trace to local SQLite]
+    end
+
+    subgraph MemorySyncPipeline[Memory Sync Pipeline - Async]
+        SyncTraces[sync-traces.py - every 30min]
+        MemExtract[memory-extractor.py - 5,35 min]
+        NightAnalyze[analyzer.py - nightly 2am]
+        WeekCurate[curator.py - Sunday 3am]
+    end
+
+    subgraph Storage[Persistent Storage]
+        LocalSQLite[(Local SQLite)]
+        VPSPostgres[(PostgreSQL agent_mesh)]
+        ArchonDB[(Archon Supabase)]
+        Neo4jGraph[(Neo4j Knowledge Graph)]
+    end
+
+    subgraph Output[Output Channels]
+        TelegramReply[Telegram Reply to Mike]
+        TerminalOutput[Terminal Output to Mike]
+        FileChanges[File System Changes]
+        TaskUpdate[Archon Task Status Update]
+        AlertNotify[Telegram Alert Notification]
+    end
+
+    TelegramMsg --> S_Route
+    TerminalCmd --> D_Parse
+    CronTrigger --> V_Route
+    ArchonTask --> D_Parse
+    ArchonTask --> V_Route
+
+    S_Route --> S_Lane --> S_Prompt --> S_Run --> S_Tools
+    S_Tools --> S_MemFlush
+    S_MemFlush --> DailyLog
+
+    D_Parse --> D_Skill --> D_Execute --> D_Archon
+    D_Execute --> FileChanges
+    D_Archon --> TaskUpdate
+
+    V_Route --> V_Ollama
+    V_Route --> V_API
+    V_Ollama --> V_Store
+    V_API --> V_Store
+
+    S_Run --> TelegramReply
+    D_Execute --> TerminalOutput
+
+    DailyLog --> SQLiteIndex
+    CuratedMem --> SQLiteIndex
+    SQLiteIndex --> LocalSQLite
+    TraceSave --> LocalSQLite
+
+    LocalSQLite --> SyncTraces
+    SyncTraces --> VPSPostgres
+    VPSPostgres --> MemExtract
+    MemExtract --> NightAnalyze
+    NightAnalyze --> WeekCurate
+    WeekCurate --> VPSPostgres
+
+    V_Store --> VPSPostgres
+    D_Archon --> ArchonDB
+
+    V_API -->|all tiers exhausted| AlertNotify

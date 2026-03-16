@@ -3,6 +3,8 @@
 
 > Channel plugin architecture, routing pipeline, session keys, group policies.
 > **Read when:** you're adding a channel, fixing routing, or changing session scoping.
+>
+> **Diagrams:** [Message Routing](../diagrams/01-message-routing.mmd)
 
 ---
 

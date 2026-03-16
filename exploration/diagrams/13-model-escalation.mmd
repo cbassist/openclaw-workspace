@@ -1,0 +1,51 @@
+flowchart TD
+    Start([Task Received])
+    Start --> TierSelect{Assigned Tier?}
+
+    TierSelect -->|fast| FastAttempt[Ollama Local - Qwen 14B or 7B]
+    TierSelect -->|medium| MediumAttempt[Gemini Flash 2.5 via API]
+    TierSelect -->|heavy| HeavyAttempt[Claude Opus 4.6 via subprocess]
+
+    FastAttempt --> FastResult{Success?}
+    FastResult -->|Yes| Done([Return Result])
+    FastResult -->|No - error/timeout/quota| FallbackFromFast{Fallback enabled?}
+    FallbackFromFast -->|Yes| MediumAttempt
+    FallbackFromFast -->|No| Failed([Return Error])
+
+    MediumAttempt --> MediumResult{Success?}
+    MediumResult -->|Yes| Done
+    MediumResult -->|No| FallbackFromMedium{Fallback enabled?}
+    FallbackFromMedium -->|Yes| FastAttempt2[Ollama Local - fallback]
+    FallbackFromMedium -->|No| Failed
+
+    FastAttempt2 --> FastResult2{Success?}
+    FastResult2 -->|Yes| Done
+    FastResult2 -->|No| Failed
+
+    HeavyAttempt --> HeavyResult{Success?}
+    HeavyResult -->|Yes| Done
+    HeavyResult -->|No| FallbackFromHeavy{Fallback chain}
+    FallbackFromHeavy --> MediumAttempt2[Gemini Flash - first fallback]
+
+    MediumAttempt2 --> MedResult2{Success?}
+    MedResult2 -->|Yes| Done
+    MedResult2 -->|No| FastAttempt3[Ollama Local - last resort]
+
+    FastAttempt3 --> FastResult3{Success?}
+    FastResult3 -->|Yes| Done
+    FastResult3 -->|No| AdminAlert[Telegram Alert to Mike]
+    AdminAlert --> Failed
+
+    subgraph CostTiers[Cost Tiers]
+        Free[Fast Tier - $0 - Ollama local]
+        Cents[Medium Tier - ~$0.001/call - Gemini/OpenRouter]
+        Dollars[Heavy Tier - subscription - Claude Opus]
+    end
+
+    subgraph PerAgentDefaults[Per-Agent Tier Defaults]
+        HB[Heartbeat: medium with fast fallback]
+        ME[Memory Extractor: medium]
+        AN[Analyzer: medium]
+        CU[Curator: medium]
+        SG[Skill Generator: heavy]
+    end

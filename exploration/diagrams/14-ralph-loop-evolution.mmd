@@ -1,0 +1,71 @@
+flowchart TD
+    subgraph RalphV1[Ralph Loop v1 - Eval Harness - COMPLETED]
+        R1_Oracle[Oracle Task Graph - T-01 through T-07]
+        R1_Execute[Agent Executes Task]
+        R1_Eval[Eval Harness Scores Result]
+        R1_Pass{Pass?}
+        R1_Next[Next Task in Graph]
+        R1_Retry[Retry with Feedback]
+
+        R1_Oracle --> R1_Execute
+        R1_Execute --> R1_Eval
+        R1_Eval --> R1_Pass
+        R1_Pass -->|Yes| R1_Next
+        R1_Pass -->|No| R1_Retry
+        R1_Retry --> R1_Execute
+        R1_Next --> R1_Oracle
+    end
+
+    subgraph RalphV2[Archon-Driven Loop v2 - PLANNED]
+        R2_Archon[Archon Task Board]
+        R2_Poll[Agent Polls for todo Tasks]
+        R2_Claim[Claim Task - set doing]
+        R2_Route[Route to Model Tier]
+        R2_Execute2[Execute Task]
+        R2_Validate{Validate Result}
+        R2_Done[Mark done]
+        R2_Escalate[Escalate Model Tier]
+        R2_Fail[Mark failed + alert]
+
+        R2_Archon --> R2_Poll
+        R2_Poll --> R2_Claim
+        R2_Claim --> R2_Route
+        R2_Route --> R2_Execute2
+        R2_Execute2 --> R2_Validate
+        R2_Validate -->|Pass| R2_Done
+        R2_Validate -->|Fail - retryable| R2_Escalate
+        R2_Validate -->|Fail - terminal| R2_Fail
+        R2_Escalate --> R2_Route
+        R2_Done --> R2_Poll
+    end
+
+    subgraph EscalationInLoop[Escalation Within Loop]
+        Ollama[1. Ollama tries first - $0]
+        GPT4Mini[2. gpt-4o-mini retries - cents]
+        GPT4[3. gpt-4o retries - dollars]
+        Human[4. Telegram alert to Mike]
+
+        Ollama -->|stuck| GPT4Mini
+        GPT4Mini -->|stuck| GPT4
+        GPT4 -->|stuck| Human
+    end
+
+    subgraph MemoryFeedback[Memory Feedback Loop]
+        TaskResult[Task Completion]
+        TraceCapture[Trace Captured to SQLite]
+        SyncVPS[Sync to VPS PostgreSQL]
+        ExtractFacts[Memory Extractor - W/B/O facts]
+        TuneWeights[Analyzer - tune RRF weights]
+        CuratePrune[Curator - prune contradictions]
+        BetterRecall[Improved Recall for Next Task]
+
+        TaskResult --> TraceCapture
+        TraceCapture --> SyncVPS
+        SyncVPS --> ExtractFacts
+        ExtractFacts --> TuneWeights
+        TuneWeights --> CuratePrune
+        CuratePrune --> BetterRecall
+        BetterRecall -.->|informs| R2_Execute2
+    end
+
+    RalphV1 -.->|evolved into| RalphV2

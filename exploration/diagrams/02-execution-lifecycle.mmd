@@ -1,0 +1,28 @@
+sequenceDiagram
+    participant Ch as Channel
+    participant Rt as Routing
+    participant LM as Lane Manager
+    participant SP as System Prompt Builder
+    participant AR as Agent Runtime (Pi)
+    participant TP as Tool Policy
+    participant Mem as Memory
+    participant UO as User/Operator
+
+    Ch->>Rt: Incoming message
+    Rt->>Rt: resolveAgentRoute()<br/>(cascade: peer, guild, team,<br/>account, wildcard, default)
+    Rt->>LM: Request lane (Main/Subagent/Cron)
+    LM->>LM: FIFO queue if at capacity
+
+    LM->>SP: Lane acquired
+    SP->>SP: buildEmbeddedSystemPrompt()<br/>(docs + tools + skills + hooks)
+    SP->>AR: Start run
+
+    AR->>TP: Tool call request
+    TP->>UO: exec.approval.request<br/>(if policy = 'ask')
+    UO->>TP: Approve / Deny
+    TP->>AR: Execute tool
+
+    AR->>Mem: Pre-compaction check<br/>(shouldRunMemoryFlush)
+    Mem->>Mem: Silent flush turn<br/>if threshold crossed
+
+    AR->>Ch: Response<br/>(chunked per channel limit)

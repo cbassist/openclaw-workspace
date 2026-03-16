@@ -1,0 +1,75 @@
+graph TD
+    subgraph L1[Layer 1 - Ephemeral Context]
+        SessionContext[Active Session Context Window]
+        ToolResults[Tool Results - capped per turn]
+        CompactionBuffer[Compaction Buffer - 200K tokens max]
+    end
+
+    subgraph L2[Layer 2 - Local Persistent Files]
+        DailyLogs[memory/YYYY-MM-DD.md - daily append logs]
+        MemoryMD[MEMORY.md - curated long-term facts]
+        SoulMD[SOUL.md - agent identity charter]
+        ToolsMD[TOOLS.md - local tool references]
+        CoordMD[COORDINATION.md - agent protocol]
+    end
+
+    subgraph L3[Layer 3 - Indexed Search Layer]
+        subgraph SQLiteLocal[Local SQLite - OpenClaw]
+            FTS5[FTS5 Full-Text - BM25 keyword]
+            SqliteVec[sqlite-vec - vector similarity]
+            HybridMerge[Hybrid Merge - 0.3 BM25 + 0.7 vector]
+        end
+
+        subgraph ClaudeAutoMem[Claude Code Auto-Memory]
+            VoiceMD[voice.md - style preferences]
+            UserProfile[user-profile.md - user context]
+            ToolEnv[tool-environment.md - env details]
+            ProjectMem[per-project memories]
+        end
+    end
+
+    subgraph L4[Layer 4 - VPS Persistent Store]
+        subgraph AgentMesh[PostgreSQL agent_mesh + pgvector]
+            SessionTraces[session_traces - execution logs]
+            MemoryBank[memory_bank - W/B/O typed facts]
+            RetrievalScores[retrieval_scores - RRF weights]
+            SkillCandidates[skill_candidates - generated skills]
+            AgentHeartbeats[agent_heartbeats - health history]
+        end
+    end
+
+    subgraph L5[Layer 5 - Knowledge Base - Archon RAG]
+        ArchonRAG[Archon RAG - 8 architecture docs]
+        EmbeddingModel[text-embedding-3-large - 3072 dims]
+        HybridSearch[Hybrid BM25 + vector + reranking]
+    end
+
+    subgraph FlushPipeline[Pre-Compaction Memory Flush]
+        ThresholdCheck[Token threshold check]
+        SilentTurn[Silent agentic turn - save durable facts]
+        WriteToL2[Write to daily log or MEMORY.md]
+        NoReply[NO_REPLY - suppress from user]
+    end
+
+    SessionContext -->|approaching limit| ThresholdCheck
+    ThresholdCheck --> SilentTurn
+    SilentTurn --> WriteToL2
+    WriteToL2 --> DailyLogs
+    WriteToL2 --> MemoryMD
+    WriteToL2 --> NoReply
+
+    DailyLogs --> FTS5
+    DailyLogs --> SqliteVec
+    MemoryMD -->|loaded at session start| SessionContext
+
+    FTS5 --> HybridMerge
+    SqliteVec --> HybridMerge
+    HybridMerge -->|recall results| SessionContext
+
+    DailyLogs -.->|sync-traces.py every 30min| SessionTraces
+    SessionTraces -->|memory-extractor 5,35min| MemoryBank
+    MemoryBank -->|Analyzer 2am| RetrievalScores
+    RetrievalScores -->|Curator Sunday 3am| MemoryBank
+
+    ArchonRAG --> HybridSearch
+    HybridSearch -->|rag_search_knowledge_base| SessionContext

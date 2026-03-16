@@ -1,0 +1,39 @@
+flowchart TD
+    Start([Incoming Message])
+    Start --> Parse[Channel Plugin parses message]
+    Parse --> Resolve[resolveAgentRoute]
+
+    Resolve --> Inputs[/Inputs: channel, accountId,<br/>peerId, guildId, teamId/]
+    Inputs --> Filter[Filter bindings by<br/>channel + accountId]
+
+    Filter --> PeerMatch{A. Exact peer<br/>match?}
+    PeerMatch -->|Yes| UsePeer[binding.peer]
+    PeerMatch -->|No| ParentMatch{B. Parent peer<br/>match?}
+
+    ParentMatch -->|Yes| UseParent[binding.peer.parent<br/>thread inheritance]
+    ParentMatch -->|No| GuildMatch{C. Guild match?}
+
+    GuildMatch -->|Yes| UseGuild[binding.guild<br/>Discord servers]
+    GuildMatch -->|No| TeamMatch{D. Team match?}
+
+    TeamMatch -->|Yes| UseTeam[binding.team<br/>Slack workspaces]
+    TeamMatch -->|No| AccountMatch{E. Account-specific<br/>match?}
+
+    AccountMatch -->|Yes| UseAccount[binding.account]
+    AccountMatch -->|No| WildcardMatch{F. Wildcard<br/>account?}
+
+    WildcardMatch -->|Yes| UseWildcard[binding.channel<br/>account = *]
+    WildcardMatch -->|No| UseDefault[G. Default agent]
+
+    UsePeer --> SessionKey
+    UseParent --> SessionKey
+    UseGuild --> SessionKey
+    UseTeam --> SessionKey
+    UseAccount --> SessionKey
+    UseWildcard --> SessionKey
+    UseDefault --> SessionKey
+
+    SessionKey[Build Session Key<br/>agent:agentId:channel:peerKind:peerId]
+    SessionKey --> GroupPolicy{Group Policy Check<br/>mention required?<br/>tool restrictions?}
+
+    GroupPolicy --> Runtime[Agent Runtime]

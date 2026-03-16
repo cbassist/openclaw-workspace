@@ -3,6 +3,8 @@
 
 > Pi Embedded Runner, execution lifecycle, auth rotation, context compaction, subagents.
 > **Read when:** you're debugging agent execution, failover, or context window issues.
+>
+> **Diagrams:** [Execution Lifecycle](../diagrams/02-execution-lifecycle.mmd) | [Auth Failover](../diagrams/03-auth-failover.mmd)
 
 ---
 

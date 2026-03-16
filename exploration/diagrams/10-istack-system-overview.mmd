@@ -1,0 +1,88 @@
+graph TD
+    subgraph UserLayer[User Layer]
+        Mike[Mike - Telegram / Terminal]
+    end
+
+    subgraph LocalMac[Local Mac]
+        subgraph Agents_Local[Primary Agents]
+            Dante[Dante - Claude Code Opus 4.6]
+            Shizzle[Shizzle - OpenClaw Agent]
+        end
+
+        subgraph OpenClawGateway[OpenClaw Gateway :18789]
+            Router[Routing Engine - 22+ channels]
+            RPC[RPC Server - 107 methods]
+            Plugins[Plugins - 41 extensions]
+            Cron[Cron + Heartbeat]
+        end
+
+        subgraph LocalModels[Local Models]
+            Qwen14B[Qwen 2.5 Coder 14B]
+            Llama1B[Llama 3.2 1B]
+        end
+
+        subgraph LocalMemory[Local Memory Layer]
+            WorkspaceFiles[Workspace Files - daily logs + MEMORY.md]
+            SQLiteMemory[SQLite - FTS5 + sqlite-vec]
+            ClaudeMemory[Claude Code Auto-Memory]
+        end
+    end
+
+    subgraph VPS[VPS 148.230.95.154]
+        subgraph VPS_Agents[VPS Agents - Cron]
+            Icarus[Icarus - Claude Code]
+            Heartbeat[Heartbeat Agent - every 15min]
+            MemExtractor[Memory Extractor - 5,35 min]
+            Analyzer[Analyzer - nightly 2am]
+            Curator[Curator - Sunday 3am]
+            SkillGen[Skill Generator - on demand]
+        end
+
+        subgraph DockerStack[Docker Stack - 16 services]
+            Ollama7B[Ollama 7B - fast tier]
+            Postgres[PostgreSQL + pgvector]
+            Neo4j[Neo4j Knowledge Graph]
+            Redis[Redis Cache]
+            MinIO[MinIO S3]
+            Langfuse[Langfuse Observability]
+            OpenWebUI[Open WebUI]
+            SearXNG[SearXNG Metasearch]
+        end
+    end
+
+    subgraph ControlPlane[Control Plane]
+        Archon[Archon MCP :8051 - Task Bus]
+        Telegram[Telegram Bot API]
+    end
+
+    subgraph CloudAPIs[Cloud Model APIs]
+        GeminiAPI[Gemini Flash 2.5 - medium tier]
+        ClaudeAPI[Claude Opus 4.6 - heavy tier]
+        OpenRouter[OpenRouter - 9 providers]
+    end
+
+    Mike --> Telegram
+    Mike --> Dante
+
+    Telegram --> Shizzle
+    Shizzle --> OpenClawGateway
+    Dante --> Archon
+    Shizzle -.->|mcporter| Archon
+
+    OpenClawGateway --> LocalModels
+    OpenClawGateway --> CloudAPIs
+    OpenClawGateway --> LocalMemory
+
+    Dante --> LocalMemory
+    Dante --> WorkspaceFiles
+
+    Heartbeat --> Postgres
+    MemExtractor --> Postgres
+    Analyzer --> Postgres
+    Curator --> Postgres
+
+    Icarus --> Archon
+    Icarus --> Ollama7B
+
+    Postgres --> Langfuse
+    SQLiteMemory -.->|sync-traces every 30min| Postgres

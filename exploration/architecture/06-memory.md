@@ -3,6 +3,8 @@
 
 > Memory architecture, workspace files, pre-compaction flush, SQLite backend, hybrid search, QMD sidecar, memory plugins.
 > **Read when:** you're working on memory, search, embeddings, or the flush pipeline.
+>
+> **Diagrams:** [Memory Architecture](../diagrams/05-memory-architecture.mmd)
 
 ---
 

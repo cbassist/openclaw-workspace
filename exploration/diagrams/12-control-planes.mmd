@@ -1,0 +1,63 @@
+graph LR
+    subgraph UserPlane[User Control Plane]
+        TelegramApp[Telegram App - mobile + desktop]
+        Terminal[Terminal - Claude Code CLI]
+        WebUI[OpenClaw Dashboard :18789]
+    end
+
+    subgraph GatewayPlane[Gateway Control Plane - OpenClaw :18789]
+        WSServer[WebSocket RPC Server]
+        AuthGate[Auth + Scope Check - read/write/admin]
+        HandlerDispatch[107 RPC Method Handlers]
+        LaneManager[Lane Manager - Main/Subagent/Cron]
+        ConfigReloader[Hot-Reload Config Watcher]
+        ChannelManager[Channel Manager - 22+ adapters]
+    end
+
+    subgraph TaskPlane[Task Control Plane - Archon :8051]
+        TaskCRUD[Task CRUD - todo/doing/review/done]
+        ProjectMgmt[Project Management - 5 projects]
+        DocStore[Document Store - 9 docs]
+        RAGEngine[RAG Knowledge Base - 8 sources]
+    end
+
+    subgraph AgentPlane[Agent Execution Plane]
+        DanteExec[Dante - direct filesystem + MCP]
+        ShizzleExec[Shizzle - Pi Embedded Runner]
+        IcarusExec[Icarus - VPS Claude Code]
+    end
+
+    subgraph ModelPlane[Model Routing Plane]
+        TierRouter[3-Tier Router]
+        FastTier[Fast - Ollama local]
+        MediumTier[Medium - Gemini Flash / OpenRouter]
+        HeavyTier[Heavy - Claude Opus 4.6]
+    end
+
+    subgraph InfraPlane[Infrastructure Plane - VPS Docker]
+        CronScheduler[Cron Scheduler - 4 agents]
+        PostgresStore[PostgreSQL + pgvector]
+        DockerOrch[Docker Compose - 16 services]
+        CaddyProxy[Caddy - auto-HTTPS reverse proxy]
+    end
+
+    TelegramApp --> ChannelManager
+    Terminal --> DanteExec
+    WebUI --> WSServer
+
+    WSServer --> AuthGate
+    AuthGate --> HandlerDispatch
+    HandlerDispatch --> LaneManager
+    LaneManager --> ShizzleExec
+
+    DanteExec --> TaskCRUD
+    ShizzleExec -.->|mcporter| TaskCRUD
+    IcarusExec --> TaskCRUD
+
+    ShizzleExec --> TierRouter
+    TierRouter --> FastTier
+    TierRouter --> MediumTier
+    TierRouter --> HeavyTier
+
+    CronScheduler --> PostgresStore
+    IcarusExec --> DockerOrch

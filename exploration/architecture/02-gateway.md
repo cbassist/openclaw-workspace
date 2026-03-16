@@ -3,6 +3,8 @@
 
 > WebSocket server, RPC protocol, lane-based concurrency, exec approval, hot-reload.
 > **Read when:** you're working on the gateway, RPC methods, or client-server communication.
+>
+> **Diagrams:** [Gateway RPC Chain](../diagrams/07-gateway-rpc-chain.mmd)
 
 ---
 

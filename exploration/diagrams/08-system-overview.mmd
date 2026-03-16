@@ -1,0 +1,63 @@
+graph TD
+    subgraph Clients
+        CLI[CLI Client]
+        WebUI[Control Panel - Web UI]
+        Mobile[Mobile Apps - iOS/Android]
+    end
+
+    subgraph Gateway
+        GW[Gateway - WebSocket :18789]
+        Routing[Routing / Bindings]
+        Cron[Cron Jobs]
+        Plugins[Plugins - 41 extensions]
+    end
+
+    subgraph AgentRuntime[Agent Runtime]
+        SysPrompt[System Prompt Builder]
+        Tools[Tools - policy enforcement]
+        Skills[Skills - 52 registered]
+
+        subgraph MemorySystem[Memory System]
+            WorkspaceFiles[Workspace Files - MD logs]
+            VectorSearch[Vector Search - SQLite FTS5 + sqlite-vec]
+            MemoryPlugins[Memory Plugins - slot based]
+        end
+    end
+
+    subgraph Channels[Channel Adapters]
+        Telegram[Telegram]
+        Discord[Discord]
+        Slack[Slack]
+        WhatsApp[WhatsApp]
+        Signal[Signal]
+        iMessage[iMessage]
+        More[+more via extensions]
+    end
+
+    CLI --> GW
+    WebUI --> GW
+    Mobile --> GW
+
+    GW --> Routing
+    GW --> Cron
+    GW --> Plugins
+
+    Routing --> SysPrompt
+    SysPrompt --> Tools
+    SysPrompt --> Skills
+
+    Tools --> MemorySystem
+    Skills --> MemorySystem
+
+    WorkspaceFiles --> VectorSearch
+    VectorSearch --> MemoryPlugins
+
+    Routing --> Channels
+
+    Telegram --> GW
+    Discord --> GW
+    Slack --> GW
+    WhatsApp --> GW
+    Signal --> GW
+    iMessage --> GW
+    More --> GW

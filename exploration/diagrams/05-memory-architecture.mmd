@@ -1,0 +1,67 @@
+graph TD
+    subgraph WorkspaceLayer[Workspace Layer - Source of Truth]
+        MemoryMD[MEMORY.md - persistent key facts]
+        DailyLogs[memory/YYYY-MM-DD.md - daily session logs]
+    end
+
+    subgraph SearchLayer[Search Layer]
+        SearchMgr[Search Manager - backend selector]
+        SearchMgr --> BuiltinSQLite
+        SearchMgr --> QMDSidecar
+
+        subgraph BuiltinSQLite[Builtin SQLite Backend]
+            FTS5[FTS5 full-text search]
+            SqliteVec[sqlite-vec vector index]
+            HybridMerge[Hybrid score merge]
+            FTS5 --> HybridMerge
+            SqliteVec --> HybridMerge
+        end
+
+        subgraph QMDSidecar[QMD Sidecar Backend]
+            BM25[BM25 keyword scoring]
+            Vectors[Vector similarity]
+            Reranking[Cross-encoder reranking]
+            BM25 --> Reranking
+            Vectors --> Reranking
+        end
+    end
+
+    subgraph PluginLayer[Plugin Layer]
+        MemoryCore[memory-core plugin]
+        MemoryLanceDB[memory-lancedb plugin]
+
+        MemoryCore --> CoreSearch[search / get]
+        MemoryLanceDB --> LanceRecall[recall / store / forget]
+        MemoryLanceDB --> AutoCapture[auto-capture pipeline]
+    end
+
+    subgraph FlushPipeline[Pre-Compaction Memory Flush]
+        ThresholdCheck[shouldRunMemoryFlush threshold check]
+        SilentTurn[Silent agentic turn]
+        DiskWrite[Write compacted memories to disk]
+        NoReply[NO_REPLY - suppress output]
+
+        ThresholdCheck --> SilentTurn
+        SilentTurn --> DiskWrite
+        DiskWrite --> NoReply
+    end
+
+    subgraph EmbeddingProviders[Embedding Providers]
+        LocalGGUF[Local GGUF]
+        OpenAIEmbed[OpenAI]
+        GeminiEmbed[Gemini]
+        VoyageEmbed[Voyage]
+    end
+
+    MemoryMD --> SearchMgr
+    DailyLogs --> SearchMgr
+
+    BuiltinSQLite --> PluginLayer
+    QMDSidecar --> PluginLayer
+
+    EmbeddingProviders --> SqliteVec
+    EmbeddingProviders --> Vectors
+    EmbeddingProviders --> LanceRecall
+
+    DiskWrite --> MemoryMD
+    DiskWrite --> DailyLogs
