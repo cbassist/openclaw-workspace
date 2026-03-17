@@ -4,14 +4,22 @@ This is a study-and-modify workspace for OpenClaw. It separates observation from
 
 ## Layout
 
-- `openclaw/` — git submodule of the OpenClaw source repo (read-only reference)
+- `openclaw/` — git submodule of the **official upstream** OpenClaw repo (`openclaw/openclaw`), read-only reference
 - `install/` — symlink to the live npm installation (`~/.local/share/fnm/node-versions/v24.13.0/installation/lib/node_modules/openclaw/`)
 - `exploration/` — notes, architecture docs, analysis
+
+## Fork (cbassist/openclaw)
+
+The working fork lives at `https://github.com/cbassist/openclaw` (forked from `openclaw/openclaw`).
+Collaborators: `cbassist` (owner), `mdc159` (write access).
+
+For source modifications, clone and work in the fork repo separately — not in this workspace's submodule.
+To compare fork vs upstream: `cd openclaw && git fetch origin && git log --oneline main..origin/main`.
 
 ## Workflow
 
 1. **Understand** — read source code in `openclaw/` to learn how things work
-2. **Modify** — edit files in `install/` to change the running installation's behavior
+2. **Modify** — for quick experiments, edit files in `install/` (live hot-patch). For lasting changes, work in the `cbassist/openclaw` fork.
 3. **Document** — save findings and notes in `exploration/`
 
 ## Rules
@@ -41,12 +49,13 @@ the source files it describes. **Read the relevant section, not the whole set.**
 | 00 | [Index](exploration/architecture/00-index.md) | — | Starting any work |
 | 01 | [System Overview](exploration/architecture/01-system-overview.md) | cli, gateway, config | Need the big picture |
 | 02 | [Gateway](exploration/architecture/02-gateway.md) | gateway/* | Touching RPC, WebSocket, control plane |
-| 03 | [Agent Runtime](exploration/architecture/03-agent-runtime.md) | agents/* | Auth, compaction, subagents, tool execution |
+| 03 | [Agent Runtime](exploration/architecture/03-agent-runtime.md) | agents/*, config/types.agent-defaults.ts | Auth, compaction, subagents, tool execution, **model configuration** |
 | 04 | [Channels & Routing](exploration/architecture/04-channels-routing.md) | channels/*, routing/* | Channel adapters, message routing, sessions |
 | 05 | [Plugins & Skills](exploration/architecture/05-plugins-skills.md) | plugins/*, skills/* | Plugin API, hooks, skill resolution |
 | 06 | [Memory](exploration/architecture/06-memory.md) | memory/* | Memory system, search, flush, backends |
 | 07 | [Memory Adoption](exploration/architecture/07-memory-adoption.md) | — | Porting memory patterns to other tools |
 | 08 | [Appendices](exploration/architecture/08-appendices.md) | — | Config reference, source file index |
+| 09 | [Model Operations](exploration/architecture/09-model-operations.md) | agents/model-selection.ts, agents/model-fallback.ts, cron/isolated-agent/run.ts | Provider tiers, fallback chain, subagent routing, cron, cost optimization |
 
 **Freshness:** Docs based on commit `880f92c` (2026-02-11). Run `/drift-check` to see what's changed since.
 
