@@ -4,3 +4,7 @@ install
 # Editor/OS artifacts
 .DS_Store
 .idea/
+
+# Secrets
+.env
+dante/.env
