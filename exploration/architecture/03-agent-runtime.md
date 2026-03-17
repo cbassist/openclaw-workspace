@@ -1,8 +1,8 @@
-<!-- based-on: 880f92c | key-files: src/agents/embedded-runner.ts, src/agents/auth-profiles.ts, src/agents/compaction.ts, src/agents/subagent.ts -->
+<!-- based-on: 88676fd | key-files: src/agents/embedded-runner.ts, src/agents/auth-profiles.ts, src/agents/compaction.ts, src/agents/subagent.ts, src/agents/model-selection.ts, src/agents/model-catalog.ts, src/agents/models-config.ts, src/agents/agent-scope.ts, src/agents/model-fallback.ts, src/config/types.agent-defaults.ts -->
 # Agent Runtime
 
-> Pi Embedded Runner, execution lifecycle, auth rotation, context compaction, subagents.
-> **Read when:** you're debugging agent execution, failover, or context window issues.
+> Pi Embedded Runner, execution lifecycle, auth rotation, context compaction, subagents, **model configuration**.
+> **Read when:** you're debugging agent execution, failover, context window issues, **or configuring which models your agent uses**.
 >
 > **Diagrams:** [Execution Lifecycle](../diagrams/02-execution-lifecycle.mmd) | [Auth Failover](../diagrams/03-auth-failover.mmd)
 
@@ -139,3 +139,208 @@ Subagents are detected via session key pattern `^[a-z0-9]+-subagent-`:
 - **Minimal prompt mode** — reduced system prompt (no heartbeat, abbreviated docs)
 - **Policy inheritance** — tool access, ownership, channel restrictions cascade from parent
 - **Session isolation** — separate session key, shared auth store
+
+### 3.7 Model Configuration
+
+This section covers how the agent decides which model and provider to use — the operator-facing configuration surface that connects to the internals described above.
+
+#### Model Resolution Chain (priority order)
+
+When the agent starts a run, the model is resolved through this cascade — first match wins:
+
+| Priority | Source | Config Key / Mechanism |
+|----------|--------|----------------------|
+| 1 (highest) | Plugin hook | `before_model_resolve` hook returns `{modelOverride, providerOverride}` |
+| 2 | Legacy plugin hook | `before_agent_start` hook (backward compat, same return shape) |
+| 3 | Runtime params | `params.provider` / `params.model` passed to `runEmbeddedPiAgent()` |
+| 4 | Per-agent config | `agents.list[].model` in `openclaw.json` |
+| 5 | Global default | `agents.defaults.model` in `openclaw.json` |
+| 6 (lowest) | Hardcoded | `DEFAULT_PROVIDER = "anthropic"`, `DEFAULT_MODEL = "claude-opus-4-6"` |
+
+**Key source**: `src/agents/pi-embedded-runner/run.ts` (hook calls + resolution), `src/agents/model-selection.ts` (default resolution), `src/agents/agent-scope.ts` (per-agent lookup).
+
+#### Model Format
+
+Models are specified as `"provider/model"` strings. Examples:
+
+```
+"openrouter/anthropic/claude-sonnet-4-6"   # Cloud via OpenRouter
+"anthropic/claude-opus-4-6"                 # Direct Anthropic API
+"ollama/qwen2.5-coder:14b-instruct-q6_K"   # Local Ollama model
+```
+
+The model config accepts either a string or an object with fallbacks:
+
+```typescript
+// Simple
+model: "openrouter/anthropic/claude-sonnet-4-6"
+
+// With fallbacks
+model: {
+  primary: "openrouter/anthropic/claude-sonnet-4-6",
+  fallbacks: [
+    "openrouter/anthropic/claude-opus-4.6",
+    "ollama/qwen2.5-coder:14b-instruct-q6_K"
+  ]
+}
+```
+
+When the primary model fails (auth, billing, rate limit, timeout), `runWithModelFallback()` in `src/agents/model-fallback.ts` tries each fallback in order. This is separate from auth profile rotation (§3.3) — fallback rotates *models*, auth rotation rotates *credentials for the same model*.
+
+#### Global Model Config (`openclaw.json`)
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openrouter/anthropic/claude-sonnet-4-6",
+        "fallbacks": ["openrouter/anthropic/claude-opus-4.6", "ollama/qwen2.5-coder:14b-instruct-q6_K"]
+      },
+      "models": {
+        "openrouter/anthropic/claude-opus-4.6": { "alias": "opus" },
+        "openrouter/anthropic/claude-sonnet-4-6": { "alias": "sonnet" },
+        "ollama/qwen2.5-coder:14b-instruct-q6_K": { "alias": "qwen", "streaming": false }
+      },
+      "heartbeat": {
+        "model": "ollama/llama3.2:1b"
+      }
+    }
+  }
+}
+```
+
+- **`agents.defaults.model`** — primary model + fallback chain for all agents
+- **`agents.defaults.models`** — model allowlist with aliases. If this dict exists (even empty), *only listed models can be selected*. Each entry can set `alias`, `streaming`, and `params`.
+- **`agents.defaults.heartbeat.model`** — lightweight model for health checks (typically a small local model)
+
+#### Per-Agent Overrides
+
+Agents in `agents.list[]` can override the global model:
+
+```json
+{
+  "agents": {
+    "list": [
+      {
+        "id": "my-agent",
+        "name": "My Agent",
+        "model": {
+          "primary": "anthropic/claude-opus-4-6",
+          "fallbacks": ["anthropic/claude-sonnet-4-5"]
+        }
+      }
+    ]
+  }
+}
+```
+
+Resolution logic in `src/agents/agent-scope.ts`:
+- `resolveAgentExplicitModelPrimary()` — returns per-agent override only (or undefined)
+- `resolveAgentEffectiveModelPrimary()` — per-agent override, then falls back to global
+
+Per-agent **can** override: model primary/fallbacks, skills filter, workspace directory, sandbox config, subagent config, heartbeat settings.
+
+Per-agent **cannot** override: auth profiles (shared across all agents using same provider), provider base URLs (global in `models.providers`).
+
+#### Provider Configuration
+
+Providers are configured globally under `models.providers`:
+
+```json
+{
+  "models": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://127.0.0.1:11434",
+        "apiKey": "ollama-local",
+        "api": "ollama",
+        "models": [
+          {
+            "id": "qwen2.5-coder:14b-instruct-q6_K",
+            "name": "Qwen 2.5 Coder 14B (local)",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 32768,
+            "maxTokens": 8192,
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+**Supported local providers**:
+
+| Provider | Default Base URL | Auth | Notes |
+|----------|-----------------|------|-------|
+| Ollama | `http://127.0.0.1:11434` | `OLLAMA_API_KEY` (any value) | Set `"streaming": false` in model allowlist for stability |
+| vLLM | `http://127.0.0.1:8000/v1` | `VLLM_API_KEY` | OpenAI-compatible API |
+| OpenRouter | `https://openrouter.ai/api/v1` | API key | Pass-through proxy, any model ID accepted |
+
+Each model entry in a provider can specify: `id`, `name`, `reasoning`, `input` (text/image/document), `contextWindow`, `maxTokens`, `cost`, `api` (compatibility layer).
+
+#### Model Catalog & Registry
+
+The model catalog (`src/agents/model-catalog.ts`) builds a runtime registry of available models:
+
+1. `ensureOpenClawModelsJson()` creates `~/.openclaw/agents/{agentId}/agent/models.json`
+2. Merges discovered models (from provider APIs) with explicit config
+3. Merge strategy: user-set `reasoning`, `cost`, `headers` are preserved; catalog updates `input`, `contextWindow`, `maxTokens`
+4. `contextWindow` keeps the **larger** of user vs catalog value (important for Ollama models with >128K contexts)
+
+**Reasoning/thinking support** (`src/agents/model-selection.ts`):
+- Models with `reasoning: true` get "low" thinking level by default
+- Claude 4.6 models get "adaptive" thinking level by default
+- Can be overridden per-model via config
+
+#### Plugin Model Overrides
+
+Plugins can dynamically override the model per-run via hooks (`src/plugins/hooks.ts`):
+
+```typescript
+// Preferred hook (new)
+api.on('before_model_resolve', async (event) => {
+  if (event.prompt.includes('vision')) {
+    return { modelOverride: 'google/gemini-2.0-flash', providerOverride: 'google' };
+  }
+});
+
+// Legacy hook (still works)
+api.on('before_agent_start', async (event) => {
+  return { modelOverride: '...', providerOverride: '...' };
+});
+```
+
+Higher-priority hooks win when multiple plugins set overrides. This enables patterns like adaptive model selection based on task type — e.g., routing vision tasks to a multimodal model or routing simple tasks to a fast local model.
+
+#### Agent File Structure
+
+```
+~/.openclaw/
+├── openclaw.json              # Global config (models, agents, channels, auth)
+├── secrets.json               # API keys (filemain provider)
+└── agents/
+    └── {agentId}/
+        └── agent/
+            ├── models.json        # Generated model registry (auto-created, merged catalog)
+            └── auth-store.json    # Auth profile state for this agent
+```
+
+#### Current Shizzle Configuration (as of 2026-03-17)
+
+For reference, the live production config on this machine:
+
+| Setting | Value |
+|---------|-------|
+| Primary model | `openrouter/anthropic/claude-sonnet-4-6` |
+| Fallback 1 | `openrouter/anthropic/claude-opus-4.6` |
+| Fallback 2 | `ollama/qwen2.5-coder:14b-instruct-q6_K` |
+| Heartbeat model | `ollama/llama3.2:1b` |
+| Local models | Qwen 2.5 Coder 14B, Llama 3.2 1B, GLM 4.7 Cloud (all via Ollama) |
+| Compaction mode | `safeguard` |
+| Max concurrent | 4 agents, 8 subagents |
+
+**Planned**: MLX runtime with speculative decoding (14B + 1.5B draft model) — see Archon task `2cba1e0f`.

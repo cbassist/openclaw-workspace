@@ -68,11 +68,13 @@ _(To be filled after upload)_
 |-----|-----------------|
 | 01-system-overview | `file_01-system-overview_md_089b1523` |
 | 02-gateway | `file_02-gateway_md_a2f0d893` |
-| 03-agent-runtime | `file_03-agent-runtime_md_42f6bf1b` |
+| 03-agent-runtime | `file_03-agent-runtime_md_228ed097` |
 | 04-channels-routing | `file_04-channels-routing_md_1ae8b6de` |
 | 05-plugins-skills | `file_05-plugins-skills_md_643f4bef` |
 | 06-memory | `file_06-memory_md_79a0df91` |
 | 07-memory-adoption | `file_07-memory-adoption_md_f3c4eab7` |
 | 08-appendices | `file_08-appendices_md_998bd228` |
+
+| 09-model-operations | `file_09-model-operations_md_0b520ad8` |
 
 **Old monolith (can be removed):** `file_openclaw-architecture_md_1857f237`
