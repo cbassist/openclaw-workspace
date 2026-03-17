@@ -16,6 +16,7 @@ Dante is a 182-line Python Telegram bot (`dante/bot.py`) bridging Telegram to Cl
 - **Reply format:** Voice note + text (text is searchable, serves as fallback)
 - **Scope:** Both phases — voice notes (Phase 1) and real-time /talk Mini App (Phase 2)
 - **Bot identity:** Extend Dante (no new bot), add /talk command for Mini App
+- **Conversation authority:** Claude owns semantics, memory, and tool use; ElevenLabs provides ASR, turn-taking, and TTS transport
 
 ---
 
@@ -40,15 +41,20 @@ New module with two async functions:
 
 - **`transcribe_voice(audio_bytes: bytes) -> str`**
   - Calls ElevenLabs Scribe v2: `client.speech_to_text.convert(audio=audio_bytes, model_id="scribe_v2")`
+  - Accepts Telegram's OGG/Opus input directly (no pre-conversion)
+  - Wrapped in explicit request timeout
   - Returns transcription text
 
 - **`text_to_voice(text: str, voice_id: str) -> bytes`**
   - Calls ElevenLabs TTS: `client.text_to_speech.convert(text=text, voice_id=..., model_id="eleven_flash_v2_5", output_format="mp3_44100_128")`
   - Converts MP3 → OGG/Opus via ffmpeg: `ffmpeg -i input.mp3 -c:a libopus -b:a 64k output.ogg`
   - Uses `asyncio.create_subprocess_exec` + `tempfile.NamedTemporaryFile` (non-blocking)
+  - Wrapped in explicit TTS timeout + ffmpeg timeout
+  - Ensures temp-file cleanup in `finally`
   - Returns OGG bytes
 
 - **Module-level client:** `AsyncElevenLabs(api_key=ELEVENLABS_API_KEY)`
+- **Concurrency guard:** module-level `asyncio.Semaphore` to limit concurrent voice jobs
 
 **File:** `dante/voice.py` (new)
 
@@ -102,8 +108,18 @@ ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
 - STT fails → send text: "(couldn't transcribe voice note)" + still forward raw indication to Claude
 - TTS fails → send text response only with note "(voice reply unavailable)"
 - ffmpeg fails → same as TTS fail
-- Long voice note → Scribe v2 handles up to 2hrs; no truncation needed
+- Voice note exceeds Dante runtime caps → reject early with a clear text explanation
 - TTS credit guard → only voice-synthesize first 1000 chars of response; send full text separately
+
+### Phase 1 Runtime Guardrails
+
+- Add explicit STT timeout (for example 45s)
+- Add explicit TTS timeout (for example 45s)
+- Add explicit ffmpeg timeout (for example 20s)
+- Add max accepted voice-note duration cap for Dante (for example 5 minutes even though upstream supports more)
+- Add max accepted download size cap for Dante
+- Limit concurrent voice jobs with a semaphore so the polling bot cannot be saturated by a burst of long notes
+- Log duration, bytes, and failure reason for each voice job
 
 ### Phase 1 Verification
 
@@ -117,7 +133,24 @@ ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
 
 ## Phase 2: Real-Time Voice (`/talk` Mini App)
 
-`/talk` command → Mini App button → React app with WebRTC → ElevenLabs Agent (real-time ASR ↔ LLM ↔ TTS).
+`/talk` command → Mini App button → React app with WebRTC → ElevenLabs real-time layer for ASR / turn-taking / TTS → Dante gateway → Claude for all semantic responses.
+
+### Phase 2 Architecture Principle
+
+Phase 2 is **Claude-authoritative**:
+
+- ElevenLabs handles capture, streaming, interruptions, and speech synthesis
+- Dante's backend owns prompt, memory, and tool execution
+- The live voice path should behave like "Dante with voice", not like a second assistant that sometimes delegates to Dante
+
+That means the backend must be the single source of truth for:
+- session identity
+- transcript history
+- prompt construction
+- tool invocation
+- final text returned for speech
+
+The ElevenLabs side should be configured as a thin real-time orchestration layer, not as an independent knowledge-bearing conversational agent.
 
 ### Step 2.1: Create FastAPI gateway (`dante/gateway/`)
 
@@ -125,21 +158,43 @@ ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
 - Parse initData query string
 - Compute `HMAC-SHA256(HMAC-SHA256(bot_token, "WebAppData"), data_check_string)`
 - Verify hash + auth_date recency (5 min)
+- Add replay protection for recent initData payloads
 
 **`dante/gateway/server.py`** — FastAPI app:
+
+- **`POST /api/session`** — Create or resume a Dante voice session
+  - Validate `Authorization: tma {initData}` header
+  - Check user against `AUTHORIZED_USERS`
+  - Derive stable session key, for example `telegram:{user_id}:voice`
+  - Return `{ "session_id": "...", "user_id": ... }`
 
 - **`POST /api/token`** — Mint signed WebRTC URL
   - Validate `Authorization: tma {initData}` header
   - Check user against `AUTHORIZED_USERS`
   - Call ElevenLabs: `POST /v1/convai/conversation/get_signed_url` with `agent_id`
-  - Return `{ "signed_url": "wss://..." }`
+  - Include the Dante `session_id` as conversation metadata if supported by the API / SDK
+  - Return `{ "signed_url": "wss://...", "session_id": "..." }`
 
-- **`POST /api/webhook/tool-call`** — Agent tool callback
+- **`POST /api/webhook/respond`** — ElevenLabs callback for finalized user turns
   - Validate `x-eleven-signature`
-  - Route to Claude via `ask_claude()` (imported from shared module)
-  - Return tool result
+  - Require `session_id`, `turn_id`, caller identity, and finalized transcript text
+  - Look up recent transcript and message history for the session
+  - Build prompt and route to Claude via `ask_claude()`
+  - Append both user transcript and Claude response to the session history
+  - Return `{ "text": "..." }` as the canonical response for ElevenLabs to speak
+
+- **Session storage**
+  - For v1, use a simple backend session store shared by the voice gateway and the bot process
+  - Private-chat Dante text history and `/talk` history should resolve to the same logical user session where practical
+  - Group chat history remains separate from the user's private voice session unless intentionally bridged later
 
 - **`GET /health`** — Health check
+  - Include Claude CLI reachability, ElevenLabs reachability, and gateway auth status checks
+
+- **Gateway hardening**
+  - Bound request body sizes
+  - Add rate limits to `/api/session` and `/api/token`
+  - Add audit logging for token minting and callback execution
 
 **Files:** `dante/gateway/__init__.py`, `dante/gateway/auth.py`, `dante/gateway/server.py` (all new)
 
@@ -147,11 +202,13 @@ ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
 
 In ElevenLabs dashboard:
 1. Create Conversational AI Agent
-2. System prompt: Dante's existing `SYSTEM_PROMPT`
+2. Keep the agent prompt minimal: it should collect turns, handle interruptions naturally, and defer substantive responses to the backend callback
 3. Voice: same `ELEVENLABS_VOICE_ID`
 4. Conversation flow: interruptions enabled, `turn_eagerness=0.3`
-5. Add Server Tool → `POST {GATEWAY_URL}/api/webhook/tool-call`
-6. Note `agent_id` → add to `.env`
+5. Add one server tool / response callback → `POST {GATEWAY_URL}/api/webhook/respond`
+6. Do not add a separate knowledge base or extra server tools in v1
+7. Ensure callback payloads carry the Dante `session_id` / conversation metadata
+8. Note `agent_id` → add to `.env`
 
 ### Step 2.3: Build React Mini App (`dante/miniapp/`)
 
@@ -177,6 +234,8 @@ Key dependencies: `@11labs/react`, `react@19`
 - Large mic button (tap to start/stop)
 - Pulsing animation during listening
 - Transcript display (partial results)
+- Connection error state with retry
+- Explicit "thinking" state while the backend waits on Claude
 
 ### Step 2.4: Add `/talk` command to `bot.py`
 
@@ -206,6 +265,7 @@ ELEVENLABS_AGENT_ID=...
 GATEWAY_HOST=0.0.0.0
 GATEWAY_PORT=8765
 MINIAPP_URL=https://...   # ngrok or Cloudflare tunnel URL
+VOICE_SESSION_SECRET=...  # gateway signing / session integrity
 ```
 
 `requirements.txt` additions:
@@ -223,12 +283,12 @@ Telegram Mini Apps require HTTPS. For local dev:
 ### Phase 2 Running the Stack
 
 Three processes:
-1. `python dante/bot.py` — Telegram bot
-2. `uvicorn dante.gateway.server:app --host 0.0.0.0 --port 8765` — Gateway
+1. `uv run python dante/bot.py` — Telegram bot
+2. `uv run uvicorn dante.gateway.server:app --host 0.0.0.0 --port 8765` — Gateway
 3. `cd dante/miniapp && npm run dev` — Mini App (port 5173)
 4. HTTPS tunnel to Mini App port
 
-Consider a `Makefile` or `run.sh` to start all.
+Consider a `Makefile` or `run.sh` to start all. Use `uv` as the Python package / command runner.
 
 ### Phase 2 Verification
 
@@ -236,8 +296,9 @@ Consider a `Makefile` or `run.sh` to start all.
 2. Tap button → Mini App loads in Telegram's webview
 3. Grant mic permission → tap to start → verify WebRTC connects
 4. Speak → verify ASR transcription appears
-5. Verify TTS response plays back
-6. Ask something requiring Claude → verify tool call webhook fires + returns
+5. Verify finalized transcript is sent to the Dante gateway and recorded against the correct session
+6. Verify Claude response comes back through the gateway and is spoken by ElevenLabs
+7. Ask something requiring repo-aware reasoning → verify the same Claude-backed behavior as text Dante
 
 ---
 
