@@ -8,3 +8,10 @@ install
 # Secrets
 .env
 dante/.env
+
+# Dependencies and build artifacts
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
