@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "40e39d97-af4c-40a5-8631-342768a8def6",
+      "agentId": "main",
+      "sessionKey": "agent:main:telegram:direct:8246962767",
+      "name": "Telegram watchdog",
+      "enabled": true,
+      "createdAtMs": 1773683930631,
+      "updatedAtMs": 1773973720394,
+      "schedule": {
+        "kind": "every",
+        "everyMs": 900000,
+        "anchorMs": 1773683930631
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run: openclaw channels status --probe\n\nIf Telegram shows anything other than \"running\" or \"works\", immediately run: openclaw gateway restart\nThen send Mike a Telegram message saying the Telegram connection was stale and the gateway was restarted automatically.\n\nAlso check Archon health: curl -sf http://localhost:8181/health\nIf Archon is unreachable, alert Mike on Telegram: \"Archon API is down at http://localhost:8181\"\n\nIf everything is fine, do nothing and exit silently.",
+        "timeoutSeconds": 120,
+        "model": "flashlite"
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "state": {
+        "nextRunAtMs": 1773974608796,
+        "lastRunAtMs": 1773973708796,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 11598,
+        "lastDeliveryStatus": "not-delivered",
+        "consecutiveErrors": 0,
+        "lastDelivered": false
+      }
+    },
+    {
+      "id": "edb34d65-7372-4b19-b1f2-b1962a1df52a",
+      "agentId": "main",
+      "sessionKey": "agent:main:telegram:direct:8246962767",
+      "name": "Watch Dante voice + Archon work",
+      "enabled": true,
+      "createdAtMs": 1773783016138,
+      "updatedAtMs": 1773971006725,
+      "schedule": {
+        "kind": "every",
+        "everyMs": 1800000,
+        "anchorMs": 1773783016138
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Check Archon projects for Dante's active work, especially `4757405c-bda3-475e-a276-8f5b499cfacd` (Dante Archon Integration) and `a53ab255-4c9f-4b0e-991e-d63f98cac253` (Agent_voice). Look for concrete progress: new tasks, task status changes, updated docs, implementation notes, or signs Dante/KITT is moving. If progress is fine, stay quiet unless something notable changed. If work appears stalled, blocked, or abandoned, notify Mike in the current Telegram chat with a concise status and suggest a specific poke. Mention if the likely blocker is Claude/provider instability vs lack of task pickup.",
+        "model": "gpt54",
+        "thinking": "low",
+        "timeoutSeconds": 120
+      },
+      "delivery": {
+        "mode": "announce",
+        "to": "8246962767",
+        "channel": "telegram"
+      },
+      "state": {
+        "nextRunAtMs": 1773974606725,
+        "lastRunAtMs": 1773970886709,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 120016,
+        "lastDeliveryStatus": "unknown",
+        "consecutiveErrors": 8,
+        "lastErrorReason": "timeout",
+        "lastError": "cron: job execution timed out"
+      }
+    }
+  ]
+}

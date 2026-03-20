@@ -8,6 +8,11 @@ install
 # Secrets
 .env
 dante/.env
+**/secrets.json
+
+# Telethon session files (persistent auth — NEVER commit)
+*.session
+*.session-journal
 
 # Dependencies and build artifacts
 node_modules/
@@ -15,3 +20,10 @@ dist/
 __pycache__/
 *.pyc
 .venv/
+
+# Workspace tooling (Playwright, etc.)
+package.json
+package-lock.json
+
+# Test artifacts
+test-results/

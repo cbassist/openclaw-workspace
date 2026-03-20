@@ -44,7 +44,7 @@ async def transcribe_voice(audio_bytes: bytes) -> str:
         try:
             result = await asyncio.wait_for(
                 _client.speech_to_text.convert(
-                    audio=audio_bytes,
+                    file=audio_bytes,
                     model_id="scribe_v2",
                 ),
                 timeout=VOICE_STT_TIMEOUT,
@@ -82,24 +82,21 @@ async def text_to_voice(text: str, voice_id: str | None = None) -> bytes:
         mp3_tmp = None
         ogg_tmp = None
         try:
-            # Step 1: ElevenLabs TTS -> MP3
-            try:
-                response = await asyncio.wait_for(
-                    _client.text_to_speech.convert(
-                        text=tts_text,
-                        voice_id=voice_id,
-                        model_id="eleven_flash_v2_5",
-                        output_format="mp3_44100_128",
-                    ),
-                    timeout=VOICE_TTS_TIMEOUT,
-                )
-            except asyncio.TimeoutError:
-                raise VoiceError(f"TTS timed out after {VOICE_TTS_TIMEOUT}s")
+            # Step 1: ElevenLabs TTS -> MP3 (async generator, collect with timeout)
+            response = _client.text_to_speech.convert(
+                text=tts_text,
+                voice_id=voice_id,
+                model_id=os.environ.get("ELEVENLABS_TTS_MODEL", "eleven_multilingual_v2"),
+                output_format="mp3_44100_128",
+            )
 
-            # Collect streamed MP3 chunks
             mp3_data = b""
-            async for chunk in response:
-                mp3_data += chunk
+            try:
+                async with asyncio.timeout(VOICE_TTS_TIMEOUT):
+                    async for chunk in response:
+                        mp3_data += chunk
+            except TimeoutError:
+                raise VoiceError(f"TTS timed out after {VOICE_TTS_TIMEOUT}s")
 
             if not mp3_data:
                 raise VoiceError("TTS returned empty audio")
