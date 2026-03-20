@@ -1,4 +1,4 @@
-"""Dante voice gateway — FastAPI server for Phase 2 real-time voice."""
+"""Donna voice gateway — FastAPI server for Phase 2 real-time voice."""
 
 import asyncio
 import hashlib
@@ -28,20 +28,26 @@ if _env_file.exists():
             os.environ.setdefault(k.strip(), v.strip())
 
 # --- Config ---
-BOT_TOKEN = os.environ.get("DANTE_BOT_TOKEN", "")
+BOT_TOKEN = os.environ.get("DONNA_BOT_TOKEN", "")
 AUTHORIZED_USERS = {8246962767}
 ELEVENLABS_AGENT_ID = os.environ.get("ELEVENLABS_AGENT_ID", "")
 GATEWAY_HOST = os.environ.get("GATEWAY_HOST", "0.0.0.0")
 GATEWAY_PORT = int(os.environ.get("GATEWAY_PORT", "8765"))
 MINIAPP_URL = os.environ.get("MINIAPP_URL", "")
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
-WORKING_DIR = os.environ.get("DANTE_WORKDIR", os.path.expanduser("~/projects/openclaw-workspace"))
+WORKING_DIR = os.environ.get("DONNA_WORKDIR", os.path.expanduser("~/projects/openclaw-workspace"))
 VOICE_SESSION_SECRET = os.environ.get("VOICE_SESSION_SECRET", "")
 
 SYSTEM_PROMPT = (
-    "You are Dante, a Claude Code instance in a real-time voice conversation via Telegram. "
+    "You are Donna, a Claude Code instance in a real-time voice conversation via Telegram. "
     "Keep responses concise and conversational — the user is hearing your reply spoken aloud. "
-    "You have full access to the openclaw-workspace and can run commands."
+    "You have full access to the openclaw-workspace and can run commands. "
+    "Follow the Agent Coordination Protocol: canonical task flow is todo -> doing -> review -> done; "
+    "as a Coding Agent you may move work only as far as review, never mark done unless you are explicitly acting as reviewer; "
+    "user validation means only true human-only actions like permissions or subjective UX judgment, not reversible technical decisions; "
+    "for reversible low-risk decisions, choose a reasonable path and proceed; "
+    "for Python work use uv-managed workflows only and never install libraries into system Python. "
+    "Archon source of truth: document 39786ee2-bb59-44db-8abe-008ce588bc48, mirrored locally at dante/AGENT_COORDINATION_PROTOCOL.md."
 )
 
 log = logging.getLogger("dante.gateway")
@@ -121,7 +127,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 # --- App ---
-app = FastAPI(title="Dante Voice Gateway", version="0.1.0")
+app = FastAPI(title="Donna Voice Gateway", version="0.1.0")
 
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
@@ -150,7 +156,7 @@ def _session_id_from_key(key: str) -> str:
 
 @app.post("/api/session", response_model=SessionResponse)
 async def create_session(authorization: str | None = Header(None)):
-    """Create or resume a Dante voice session."""
+    """Create or resume a Donna voice session."""
     init_data = _parse_tma_header(authorization)
 
     try:
@@ -348,7 +354,7 @@ def _format_session_history(session_id: str, new_text: str) -> str:
     if history:
         parts.append("=== Voice conversation so far ===")
         for entry in history:
-            label = "User" if entry["role"] == "user" else "Dante"
+            label = "User" if entry["role"] == "user" else "Donna"
             parts.append(f"{label}: {entry['text']}")
         parts.append("=== New utterance ===")
     parts.append(f"User: {new_text}")
@@ -432,7 +438,7 @@ async def webhook_respond(request: Request):
 
     The ElevenLabs Agent is configured with a server tool that calls this endpoint
     when the user finishes speaking. The tool parameters should include:
-    - session_id: Dante voice session ID
+    - session_id: Donna voice session ID
     - transcript: Finalized user transcript text
     """
     body = await request.body()
@@ -495,7 +501,7 @@ async def webhook_respond(request: Request):
     # Call Claude
     response = await _ask_claude(full_prompt)
 
-    # Record Dante's response
+    # Record Donna's response
     record_session_message(session_id, "assistant", response)
 
     log.info(

@@ -1,4 +1,4 @@
-# Dante — local development commands
+# Donna — local development commands
 # Requires: uv, node/npm, ffmpeg
 
 .PHONY: install bot gateway miniapp tunnel all help
@@ -7,14 +7,14 @@ help: ## Show this help
 	@grep -E '^[a-z][a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 install: ## Install all dependencies
-	uv pip install -r requirements.txt
+	uv sync
 	cd miniapp && npm install
 
 bot: ## Start the Telegram bot (Phase 1 + 2)
 	uv run python bot.py
 
 gateway: ## Start the FastAPI voice gateway (Phase 2, port 8765)
-	uv run uvicorn dante.gateway.server:app --host 0.0.0.0 --port 8765 --reload
+	uv run uvicorn gateway.server:app --host 0.0.0.0 --port 8765 --reload
 
 miniapp: ## Start the React Mini App dev server (Phase 2, port 5173)
 	cd miniapp && npm run dev

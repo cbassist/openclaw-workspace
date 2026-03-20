@@ -1,4 +1,4 @@
-# Dante -> Archon Access Plan
+# Donna -> Archon Access Plan
 
 **Task:** `5e2c2d74-a525-452d-b2f4-ea280cbd61f1`
 **Date:** 2026-03-17
@@ -6,7 +6,7 @@
 
 ## Current Reality
 
-Dante is not fueled by the Claude API right now.
+Donna is not fueled by the Claude API right now.
 
 It still runs Claude Code through the local CLI:
 
@@ -21,13 +21,13 @@ proc = await asyncio.create_subprocess_exec(
 
 That means:
 
-- Dante should keep Claude interaction simple and text-based
+- Donna should keep Claude interaction simple and text-based
 - Archon access should be implemented directly in Python
 - We should not depend on Claude emitting structured tool calls
 
 ## Problem
 
-Dante can chat, but it cannot currently perform structured Archon operations such as:
+Donna can chat, but it cannot currently perform structured Archon operations such as:
 
 - listing tasks
 - reading task details
@@ -43,7 +43,7 @@ Use a direct Python MCP client for Archon.
 
 Do not:
 
-- switch Dante away from `claude --print`
+- switch Donna away from `claude --print`
 - inject Archon state into every Claude prompt
 - parse JSON action blocks from Claude output
 
@@ -51,8 +51,8 @@ Do not:
 
 | Approach | Verdict | Reason |
 |----------|---------|--------|
-| Direct Python MCP client | Use now | Deterministic, local, fits current Dante architecture |
-| Claude tool-use mode | Avoid | Dante is using stable CLI print mode, not structured tool mode |
+| Direct Python MCP client | Use now | Deterministic, local, fits current Donna architecture |
+| Claude tool-use mode | Avoid | Donna is using stable CLI print mode, not structured tool mode |
 | Parse Claude JSON actions | Avoid | Brittle and prompt-fragile |
 | Direct Archon REST API | Possible fallback | MCP is the intended public interface |
 
@@ -178,11 +178,11 @@ Simple project listing only.
 
 ## Authentication and Safety
 
-All Archon commands should reuse Dante's existing `check_auth()`.
+All Archon commands should reuse Donna's existing `check_auth()`.
 
 Extra recommendation:
 
-- allow read commands in all currently allowed Dante contexts
+- allow read commands in all currently allowed Donna contexts
 - restrict mutation commands like `/done` to private chats at first
 
 That means:
@@ -205,7 +205,7 @@ That will make responses noisier and harder to reason about. Archon should be ex
 
 That creates a fake tool protocol with no strong guarantees.
 
-If Dante needs to mutate Archon, Dante should do it directly in Python.
+If Donna needs to mutate Archon, Donna should do it directly in Python.
 
 ## File Changes
 
@@ -249,4 +249,4 @@ The right first integration is:
 - no prompt injection
 - no Claude action parsing
 
-That matches how Dante actually works today.
+That matches how Donna actually works today.

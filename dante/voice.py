@@ -1,4 +1,4 @@
-"""Dante voice adapter — async ElevenLabs STT (Scribe v2) and TTS utilities."""
+"""Donna voice adapter — async ElevenLabs STT (Scribe v2) and TTS utilities."""
 
 import asyncio
 import logging

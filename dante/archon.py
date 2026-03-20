@@ -1,4 +1,4 @@
-"""Async Archon MCP client for Dante."""
+"""Async Archon MCP client for Donna."""
 
 from __future__ import annotations
 
