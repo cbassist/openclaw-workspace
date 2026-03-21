@@ -27,7 +27,7 @@ if _env_file.exists():
 # --- Config ---
 BOT_TOKEN = os.environ.get("DONNA_BOT_TOKEN", "")
 AUTHORIZED_USERS = {8246962767}  # Mike's Telegram user ID
-ALLOWED_GROUPS = {-1003678142898}  # Ollama1 group (add new groups here as created)
+ALLOWED_GROUPS = {-1003678142898, -5210450493}  # Ollama1 group + Agent Coordination Protocol group
 
 # --- Project-to-group routing ---
 # Map Archon project IDs to Telegram group chat IDs.
